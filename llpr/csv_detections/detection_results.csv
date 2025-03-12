@@ -1,0 +1,2 @@
+frame_nmr,car_id,car_bbox,license_plate_bbox,license_plate_bbox_score,license_number,license_number_score
+0,0,[0 0 0 0],[0.0 0.22210323810577393 109.0 34.34368896484375],0.2533268630504608,T789BEA,0.9839798518358748
