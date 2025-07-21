@@ -1,17 +1,15 @@
-streamlit==1.47.0
-opencv-python-headless==4.12.0.88
-ultralytics==8.1.25
-easyocr==1.7.2
-numpy
-requests
-torch # Let pip find the most compatible CPU version for Python 3.10
-torchvision # Let pip find the most compatible CPU version for Python 3.10
-scipy
+# requirements.txt
+streamlit
 Pillow
-python-bidi
-pyclipper
-scikit-image
-ninja
-Shapely
-PyYAML
-pandas
+numpy
+opencv-python-headless # Use headless for server environments to avoid GUI dependencies
+ultralytics
+easyocr
+requests
+smtplib # Standard library, usually not needed in requirements.txt but good to list if unsure
+email-validator # If you use email validation, otherwise remove
+# PyTorch and its related libraries (CPU version)
+# This line is crucial for the Unpickler error fix on deployment
+torch==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
+torchvision==0.18.0+cpu --index-url https://download.pytorch.org/whl/cpu
+torchaudio==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
