@@ -1,5 +1,6 @@
 streamlit
 opencv-python-headless
 ultralytics==8.1.25
-torch==2.0.1
 easyocr
+torch==2.0.1
+requests
