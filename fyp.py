@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-# IMPORTANT: These paths are now relative to your project's root directory on Streamlit Cloud.
+# IMPORTANT: Ensure these paths use FORWARD SLASHES (/) for cloud deployment.
 # You MUST place 'license_plate_detector.pt' inside a 'models' folder in your GitHub repo.
 LICENSE_MODEL_DETECTION_DIR = 'models/license_plate_detector.pt'
 COCO_MODEL_DIR = 'yolov8n.pt' # Ultralytics will download this if not found
@@ -39,8 +39,8 @@ def load_models():
     try:
         logger.info(f"COCO model path (will be downloaded if not found): {COCO_MODEL_DIR}")
         logger.info(f"License plate model path (must be in repo): {LICENSE_MODEL_DETECTION_DIR}")
-        st.write(f"COCO model path (will be downloaded if not found): {COCO_MODEL_DIR}")
-        st.write(f"License plate model path (must be in repo): {LICENSE_MODEL_DETECTION_DIR}")
+        st.write(f"Attempting to load COCO model from: {COCO_MODEL_DIR}")
+        st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}") # This will show the exact path being used
 
         # Removed os.path.isfile checks here as they conflict with cloud deployment/auto-download.
         # The YOLO constructor and the outer try-except block handle errors.
@@ -317,6 +317,7 @@ def main():
         st.markdown("---")
         
         st.subheader("Model Paths (Local)") # Back to English
+        # This will now show the relative paths used in the cloud
         st.write(f"COCO: `{COCO_MODEL_DIR}`")
         st.write(f"License Plate: `{LICENSE_MODEL_DETECTION_DIR}`")
 
