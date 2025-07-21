@@ -14,11 +14,9 @@ import os
 import torch.serialization # Import torch.serialization
 from ultralytics.nn.tasks import DetectionModel # Import DetectionModel directly
 import torch.nn # Import torch.nn to access modules like Sequential
-# --- NEW: Import ALL common ultralytics.nn.modules for safe loading ---
-# This list is expanded to cover most common YOLOv8 components
+# --- CORRECTED: Import only actual nn.modules for safe loading ---
 from ultralytics.nn.modules import (
     Conv, C2f, Bottleneck, SPPF, Detect, Concat, DFL,
-    Detections, # For detection heads
     Segment, # If your model has segmentation capabilities
     Pose, # If your model has pose estimation capabilities
     Classify # If your model has classification capabilities
@@ -54,11 +52,8 @@ def load_models():
         st.write(f"Attempting to load COCO model from: {COCO_MODEL_DIR}")
         st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}") # This will show the exact path being used
 
-        # --- CRITICAL FIX: Add ALL necessary ultralytics.nn.modules to safe globals ---
-        # This is necessary for newer PyTorch versions (e.g., 2.6+)
-        # that default to weights_only=True for security.
-        # If you still get an "Unsupported global" error, the name of the missing module
-        # will be in the error message, and you'll need to add it here.
+        # --- CRITICAL FIX: Add ONLY necessary ultralytics.nn.modules to safe globals ---
+        # Removed 'Detections' as it's not an nn.Module
         torch.serialization.add_safe_globals([
             DetectionModel,
             torch.nn.modules.container.Sequential,
@@ -69,10 +64,9 @@ def load_models():
             Detect,
             Concat,
             DFL,
-            Detections,
-            Segment, # Added for completeness
-            Pose,    # Added for completeness
-            Classify # Added for completeness
+            Segment,
+            Pose,
+            Classify
         ])
         # --- END OF CRITICAL FIX ---
 
