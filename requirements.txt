@@ -2,14 +2,7 @@
 streamlit
 Pillow
 numpy
-opencv-python-headless # Use headless for server environments to avoid GUI dependencies
+opencv-python-headless # Recommended for server environments
 ultralytics
 easyocr
 requests
-smtplib # Standard library, usually not needed in requirements.txt but good to list if unsure
-email-validator # If you use email validation, otherwise remove
-# PyTorch and its related libraries (CPU version)
-# This line is crucial for the Unpickler error fix on deployment
-torch==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
-torchvision==0.18.0+cpu --index-url https://download.pytorch.org/whl/cpu
-torchaudio==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
