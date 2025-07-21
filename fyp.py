@@ -4,29 +4,36 @@ import numpy as np
 import cv2
 from ultralytics import YOLO
 import easyocr
-import requests
+import requests # Used for HTTP requests to your PHP API
 import smtplib
 from email.message import EmailMessage
 import time
 from datetime import datetime
 import logging
 import os
-import torch.serialization
-from ultralytics.nn.tasks import DetectionModel
-import torch.nn
-from ultralytics.nn.modules import Conv # <--- NEW: Import Conv module
+import torch.serialization # Import torch.serialization
+from ultralytics.nn.tasks import DetectionModel # Import DetectionModel directly
+import torch.nn # Import torch.nn to access modules like Sequential
+# --- NEW: Import more common ultralytics.nn.modules for safe loading ---
+from ultralytics.nn.modules import Conv, C2f, Bottleneck, SPPF, Detect
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
+# IMPORTANT: This path MUST use FORWARD SLASHES (/) for cloud deployment.
+# Ensure 'license_plate_detector.pt' is in a 'models' folder relative to this script on GitHub.
 LICENSE_MODEL_DETECTION_DIR = 'models/license_plate_detector.pt'
-COCO_MODEL_DIR = 'yolov8n.pt'
+COCO_MODEL_DIR = 'yolov8n.pt' # Ultralytics will download this if not found
+
+# PHP API Base URL (CONFIRMED FROM YOUR PREVIOUS MESSAGE)
 API_BASE_URL = "https://quantisbroker.com/vehicle-payment-api"
+
+# Email configuration
 EMAIL_CONFIG = {
     'sender_email': 'googlotanzania@gmail.com',
-    'app_password': 'qyln pcco sedy gewj',
+    'app_password': 'qyln pcco sedy gewj', # This is sensitive, consider using environment variables
     'smtp_server': 'smtp.gmail.com',
     'smtp_port': 465
 }
@@ -38,15 +45,19 @@ def load_models():
         logger.info(f"COCO model path (will be downloaded if not found): {COCO_MODEL_DIR}")
         logger.info(f"License plate model path (must be in repo): {LICENSE_MODEL_DETECTION_DIR}")
         st.write(f"Attempting to load COCO model from: {COCO_MODEL_DIR}")
-        st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}")
+        st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}") # This will show the exact path being used
 
-        # --- CORRECTED FIX ---
-        # Add ultralytics.nn.tasks.DetectionModel, torch.nn.modules.container.Sequential,
-        # and ultralytics.nn.modules.Conv to safe globals for PyTorch loading.
+        # --- CORRECTED FIX: Add all necessary ultralytics.nn.modules to safe globals ---
+        # This is necessary for newer PyTorch versions (e.g., 2.6+)
+        # that default to weights_only=True for security.
         torch.serialization.add_safe_globals([
             DetectionModel,
-            torch.nn.modules.container.Sequential,
-            Conv # <--- NEW: Add Conv module
+            torch.nn.modules.container.Sequential, # Added previously
+            Conv,       # Added previously
+            C2f,        # NEW: Common YOLOv8 module
+            Bottleneck, # NEW: Common YOLOv8 module
+            SPPF,       # NEW: Common YOLOv8 module
+            Detect      # NEW: Common YOLOv8 module
         ])
         # --- END OF CORRECTED FIX ---
 
@@ -75,6 +86,7 @@ def get_vehicle_payment_status_from_api(license_plate):
     if not formatted_license:
         return {'found': False, 'error': 'Invalid license plate format'}
     try:
+        # Explicitly set Accept and User-Agent headers
         headers = {
             'Accept': 'application/json',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
@@ -84,7 +96,7 @@ def get_vehicle_payment_status_from_api(license_plate):
             headers=headers,
             timeout=10
         )
-        response.raise_for_status()
+        response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
         data = response.json()
         if data.get('success') and data.get('data'):
             vehicle_data = data['data']
@@ -93,7 +105,7 @@ def get_vehicle_payment_status_from_api(license_plate):
                 'vehicle_id': vehicle_data['vehicle_ID'],
                 'owner_name': vehicle_data['owner_name'],
                 'phone_number': vehicle_data['phone_number'],
-                'fine_payment': float(vehicle_data['fine_payment']),
+                'fine_payment': float(vehicle_data['fine_payment']), # Ensure float type
                 'command_status': vehicle_data['command_status'],
                 'last_updated': vehicle_data['last_updated']
             }
@@ -132,7 +144,7 @@ def read_license_plate(license_plate_crop, img):
 
         logger.info(f"Detection box area ratio: {area_ratio:.3f} for text: {text}")
 
-        if area_ratio > 0.05:
+        if area_ratio > 0.05: # Filter out small, potentially noisy detections
             plate.append(text.upper())
             scores += score
     if plate:
@@ -155,6 +167,7 @@ def model_prediction(img):
     if len(license_detections.boxes.cls.tolist()) != 0:
         for license_plate in license_detections.boxes.data.tolist():
             x1, y1, x2, y2, score, class_id = license_plate
+            # Add margin
             margin = 10
             h, w = img_bgr.shape[:2]
             x1 = max(int(x1) - margin, 0)
@@ -166,6 +179,7 @@ def model_prediction(img):
             license_plate_text, license_plate_text_score = read_license_plate(
                 license_plate_crop_gray, img_bgr
             )
+            # Fetch payment status from API
             payment_status = None
             if license_plate_text:
                 payment_status = get_vehicle_payment_status_from_api(license_plate_text)
@@ -180,14 +194,17 @@ def model_prediction(img):
 
 def send_sms_notification(phone_number, vehicle_id, fine_amount, status):
     try:
+        # This link should point to your deployed Vercel frontend
         payment_link = f"https://v0-payment-simulation-page.vercel.app/?vehicle_id={vehicle_id}"
         message = (
             f"ALERT: Vehicle {vehicle_id} status: {status}. Fine: ${fine_amount}. "
             f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}. "
             f"Pay now: {payment_link}"
         )
+        # IMPORTANT: Ensure your local PHP server is running and accessible at this URL
+        # For deployment, this URL might need to be a publicly accessible endpoint
         response = requests.post(
-            "http://localhost/QONTE/sms_notification.php",
+            "http://localhost/QONTE/sms_notification.php", # <--- Check this URL for deployment
             data={
                 "phone_number": phone_number,
                 "vehicle_id": vehicle_id,
@@ -256,6 +273,7 @@ def process_vehicle_detection(detection_result):
     fine_amount = payment_status.get('fine_payment', 0)
     last_updated = payment_status.get('last_updated', 'Unknown')
 
+    # Display vehicle information (simplified output, back to English)
     st.info(f"**Vehicle ID:** {vehicle_id}")
     st.info(f"**Owner:** {owner_name}")
     st.info(f"**Phone:** {phone_number}")
@@ -263,23 +281,30 @@ def process_vehicle_detection(detection_result):
     st.info(f"**Last Updated:** {last_updated}")
     st.info(f"**Detection Confidence:** {detection_result['confidence']:.2f}")
 
+    # Real-time status processing
     if status == 'NOT PAID':
         st.error("🚫 **VEHICLE BLOCKED** - Payment Required!")
         st.error("**ACCESS DENIED** - Vehicle cannot proceed until payment is made.")
+        # Payment link
         payment_link = f"https://v0-payment-simulation-page.vercel.app/?vehicle_id={vehicle_id}"
         st.info(f"[🔗 Pay Fine Now]({payment_link})")
+        # Send immediate alerts (Email in Swahili, without specific vehicle details block)
         email_subject = f"🚨 HARAKA: Gari {vehicle_id} LIMEZUIWA - Malipo Yanahitajika"
         email_body = f"""TAARIFA YA UFUATILIAJI WA GARI - HATUA YA HARAKA INAHITAJIKAGari hili limezuiwa kiotomatiki kutokana na faini ambazo hazijalipwa.Gari haliwezi kuendelea hadi malipo yakamilike.Lipa faini yako sasa: {payment_link}Tafadhali wasiliana na mmiliki mara moja au kamilisha malipo ili kufungua gari.
         """
+        # Send notifications
         send_sms_notification(phone_number, vehicle_id, fine_amount, "BLOCKED - NOT PAID")
         send_email_fast(EMAIL_CONFIG['sender_email'], email_subject, email_body)
 
     elif status == 'PAID':
         st.success("✅ **VEHICLE CLEARED** - Payment Verified!")
         st.success("**ACCESS GRANTED** - Vehicle is free to proceed.")
+
+        # Send confirmation (Email in Swahili, without specific vehicle details block)
         email_subject = f"✅ Gari {vehicle_id} - Ufikiaji Umeruhusiwa"
         email_body = f"""UTHIBITISHO WA UFUATILIAJI WA GARIGari hili limethibitishwa kuwa LIMELIPWA na linaruhusiwa kuendelea.
         """
+
         send_sms_notification(phone_number, vehicle_id, fine_amount, "CLEARED - PAID")
         send_email_fast(EMAIL_CONFIG['sender_email'], email_subject, email_body)
 
@@ -290,75 +315,87 @@ def process_vehicle_detection(detection_result):
 # --- Streamlit UI ---
 def main():
     st.set_page_config(
-        page_title="Real-Time Vehicle Control System",
+        page_title="Real-Time Vehicle Control System", # Back to English
         page_icon="🚗",
         layout="wide"
     )
 
-    st.title("🚗 REAL-TIME VEHICLE LICENSE PLATE DETECTION & CONTROL SYSTEM")
+    st.title("🚗 REAL-TIME VEHICLE LICENSE PLATE DETECTION & CONTROL SYSTEM") # Back to English
     st.markdown("---")
 
+    # Sidebar for system status
     with st.sidebar:
-        st.header("📊 System Status")
-        st.info("This app fetches real-time vehicle status from your deployed PHP API.")
+        st.header("📊 System Status") # Back to English
+        st.info("This app fetches real-time vehicle status from your deployed PHP API.") # Back to English
         st.markdown(f"**PHP API Base URL:** `{API_BASE_URL}`")
         st.markdown("---")
-        st.subheader("Model Paths (Local)")
+
+        st.subheader("Model Paths (Local)") # Back to English
+        # This will now show the relative paths used in the cloud
         st.write(f"COCO: `{COCO_MODEL_DIR}`")
         st.write(f"License Plate: `{LICENSE_MODEL_DETECTION_DIR}`")
 
-    st.write("📸 **Capture or upload a vehicle image for real-time license plate detection and payment verification.**")
+    # Main content
+    st.write("📸 **Capture or upload a vehicle image for real-time license plate detection and payment verification.**") # Back to English
 
+    # Image input options
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("📷 Camera Input")
-        st.info("**Tip:** On mobile, tap the camera icon in your browser's address bar or settings to select the back (environment) camera for best results.")
-        camera_img = st.camera_input("Take a Photo")
+        st.subheader("📷 Camera Input") # Back to English
+        st.info("**Tip:** On mobile, tap the camera icon in your browser's address bar or settings to select the back (environment) camera for best results.") # Back to English
+        camera_img = st.camera_input("Take a Photo") # Back to English
     with col2:
-        st.subheader("📁 File Upload")
-        uploaded_img = st.file_uploader("Upload Vehicle Image", type=["jpg", "png", "jpeg"])
+        st.subheader("📁 File Upload") # Back to English
+        uploaded_img = st.file_uploader("Upload Vehicle Image", type=["jpg", "png", "jpeg"]) # Back to English
 
+    # Process image
     image = None
     if camera_img is not None:
         image = np.array(Image.open(camera_img))
-        st.success("📷 Camera image captured!")
+        st.success("📷 Camera image captured!") # Back to English
     elif uploaded_img is not None:
         image = np.array(Image.open(uploaded_img))
-        st.success("📁 Image uploaded successfully!")
+        st.success("📁 Image uploaded successfully!") # Back to English
 
     if image is not None:
-        st.subheader("🖼️ Input Image")
-        st.image(image, width=600, caption="Vehicle Image for Analysis")
+        # Display image
+        st.subheader("🖼️ Input Image") # Back to English
+        st.image(image, width=600, caption="Vehicle Image for Analysis") # Back to English
 
-        with st.spinner("🔍 Detecting license plate and checking status via API..."):
+        # Process detection
+        with st.spinner("🔍 Detecting license plate and checking status via API..."): # Back to English
             results = model_prediction(image)
 
         if not results:
-            st.warning("⚠️ No license plate detected in the image.")
-            st.info("💡 **Tips for better detection:**")
-            st.info("- Ensure the license plate is clearly visible")
-            st.info("- Good lighting conditions")
-            st.info("- Minimal blur or distortion")
+            st.warning("⚠️ No license plate detected in the image.") # Back to English
+            st.info("💡 **Tips for better detection:**") # Back to English
+            st.info("- Ensure the license plate is clearly visible") # Back to English
+            st.info("- Good lighting conditions") # Back to English
+            st.info("- Minimal blur or distortion") # Back to English
         else:
-            st.success(f"✅ Detected {len(results)} license plate(s)")
+            st.success(f"✅ Detected {len(results)} license plate(s)") # Back to English
 
             for i, result in enumerate(results):
                 st.markdown("---")
-                st.subheader(f"🚗 Vehicle Detection #{i+1}")
+                st.subheader(f"🚗 Vehicle Detection #{i+1}") # Back to English
 
+                # Show cropped license plate
                 col1, col2 = st.columns([1, 2])
 
                 with col1:
-                    st.image(result['crop'], caption="License Plate Crop", width=300)
+                    st.image(result['crop'], caption="License Plate Crop", width=300) # Back to English
 
                 with col2:
                     if result['text']:
-                        st.success(f"**License Number:** {result['text']}")
+                        st.success(f"**License Number:** {result['text']}") # Back to English
+
+                        # Process vehicle with real-time control
                         process_vehicle_detection(result)
                     else:
                         st.error("❌ Could not read license plate text")
+    # Footer
     st.markdown("---")
-    st.markdown("**🔧 Real-Time Vehicle Control System** | Status fetched from PHP API | Instant notifications")
+    st.markdown("**🔧 Real-Time Vehicle Control System** | Status fetched from PHP API | Instant notifications") # Back to English
 
 if __name__ == "__main__":
     main()
