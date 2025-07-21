@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # IMPORTANT: This path MUST use FORWARD SLASHES (/) for cloud deployment.
 # Based on your local path, it seems 'models' is inside an 'llpr' folder in your repo.
 # Please verify this exact path on your GitHub repository.
-LICENSE_MODEL_DETECTION_DIR = 'C:/VEHICLE/VEHICLE-UNIT/llpr/models/license_plate_detector.pt' # <--- UPDATED PATH
+LICENSE_MODEL_DETECTION_DIR = 'llpr/models/license_plate_detector.pt' # <--- UPDATED PATH
 COCO_MODEL_DIR = 'yolov8n.pt' # Ultralytics will download this if not found
 
 # PHP API Base URL (CONFIRMED FROM YOUR PREVIOUS MESSAGE)
@@ -68,7 +68,7 @@ def load_models():
             error_msg = (
                 "CRITICAL ERROR: 'torch.serialization' module is missing the 'Unpickler' attribute. "
                 "This indicates a severe issue with your PyTorch installation or version. "
-                "Please ensure PyTorch is installed correctly and is up-to-date (e.g., `pip install --upgrade torch torchvision torchaudio`). "
+                "Please ensure PyTorch is installed correctly and is up-to-date. "
                 "Model loading cannot proceed without this core PyTorch component."
             )
             st.error(error_msg)
@@ -115,22 +115,31 @@ def load_models():
         # Apply the monkey-patch
         torch.load = custom_torch_load
 
+        # --- Specific error handling for YOLO model loading ---
         try:
             # Attempt to load the license plate detector model using YOLO
             # This will now use our custom_torch_load function internally
             license_plate_detector = YOLO(LICENSE_MODEL_DETECTION_DIR)
             st.success("License plate detector model loaded successfully (possibly with weights_only=False workaround).")
+        except FileNotFoundError:
+            st.error(f"ERROR: License plate detector model file not found at: {LICENSE_MODEL_DETECTION_DIR}. Please ensure it's in your GitHub repo at the correct path.")
+            logger.error(f"FileNotFoundError for license plate detector model: {LICENSE_MODEL_DETECTION_DIR}")
+            license_plate_detector = None
         except Exception as e_lp_load:
-            st.error(f"Failed to load license plate detector model even with workaround: {e_lp_load}")
-            logger.error(f"Failed to load license plate detector model with workaround: {e_lp_load}")
-            license_plate_detector = None # Ensure it's None if loading fails
+            st.error(f"Failed to load license plate detector model: {e_lp_load}. This is likely due to the 'Unpickler' issue or model corruption.")
+            logger.error(f"Failed to load license plate detector model: {e_lp_load}")
+            license_plate_detector = None
 
         try:
             # Load the COCO model (this should not be affected by weights_only=False unless it's also a custom .pt)
             coco_model = YOLO(COCO_MODEL_DIR)
             st.success("COCO model loaded successfully.")
+        except FileNotFoundError:
+            st.error(f"ERROR: COCO model file not found at: {COCO_MODEL_DIR}. Ultralytics usually downloads this, but check network access.")
+            logger.error(f"FileNotFoundError for COCO model: {COCO_MODEL_DIR}")
+            coco_model = None
         except Exception as e_coco_load:
-            st.error(f"Failed to load COCO model: {e_coco_load}")
+            st.error(f"Failed to load COCO model: {e_coco_load}. This is likely due to the 'Unpickler' issue or network problems for download.")
             logger.error(f"Failed to load COCO model: {e_coco_load}")
             coco_model = None
 
