@@ -17,8 +17,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-# IMPORTANT: Ensure these paths use FORWARD SLASHES (/) for cloud deployment.
-# You MUST place 'license_plate_detector.pt' inside a 'models' folder in your GitHub repo.
+# IMPORTANT: This path MUST use FORWARD SLASHES (/) for cloud deployment.
+# Ensure 'license_plate_detector.pt' is in a 'models' folder relative to this script on GitHub.
 LICENSE_MODEL_DETECTION_DIR = 'models/license_plate_detector.pt'
 COCO_MODEL_DIR = 'yolov8n.pt' # Ultralytics will download this if not found
 
