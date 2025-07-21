@@ -14,8 +14,15 @@ import os
 import torch.serialization # Import torch.serialization
 from ultralytics.nn.tasks import DetectionModel # Import DetectionModel directly
 import torch.nn # Import torch.nn to access modules like Sequential
-# --- NEW: Import more common ultralytics.nn.modules for safe loading ---
-from ultralytics.nn.modules import Conv, C2f, Bottleneck, SPPF, Detect
+# --- NEW: Import ALL common ultralytics.nn.modules for safe loading ---
+# This list is expanded to cover most common YOLOv8 components
+from ultralytics.nn.modules import (
+    Conv, C2f, Bottleneck, SPPF, Detect, Concat, DFL,
+    Detections, # For detection heads
+    Segment, # If your model has segmentation capabilities
+    Pose, # If your model has pose estimation capabilities
+    Classify # If your model has classification capabilities
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -47,19 +54,27 @@ def load_models():
         st.write(f"Attempting to load COCO model from: {COCO_MODEL_DIR}")
         st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}") # This will show the exact path being used
 
-        # --- CORRECTED FIX: Add all necessary ultralytics.nn.modules to safe globals ---
+        # --- CRITICAL FIX: Add ALL necessary ultralytics.nn.modules to safe globals ---
         # This is necessary for newer PyTorch versions (e.g., 2.6+)
         # that default to weights_only=True for security.
+        # If you still get an "Unsupported global" error, the name of the missing module
+        # will be in the error message, and you'll need to add it here.
         torch.serialization.add_safe_globals([
             DetectionModel,
-            torch.nn.modules.container.Sequential, # Added previously
-            Conv,       # Added previously
-            C2f,        # NEW: Common YOLOv8 module
-            Bottleneck, # NEW: Common YOLOv8 module
-            SPPF,       # NEW: Common YOLOv8 module
-            Detect      # NEW: Common YOLOv8 module
+            torch.nn.modules.container.Sequential,
+            Conv,
+            C2f,
+            Bottleneck,
+            SPPF,
+            Detect,
+            Concat,
+            DFL,
+            Detections,
+            Segment, # Added for completeness
+            Pose,    # Added for completeness
+            Classify # Added for completeness
         ])
-        # --- END OF CORRECTED FIX ---
+        # --- END OF CRITICAL FIX ---
 
         coco_model = YOLO(COCO_MODEL_DIR)
         license_plate_detector = YOLO(LICENSE_MODEL_DETECTION_DIR)
