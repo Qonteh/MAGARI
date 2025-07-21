@@ -21,7 +21,7 @@ from ultralytics.nn.modules import (
     Segment, # If your model has segmentation capabilities
     Pose, # If your model has pose estimation capabilities
     Classify, # If your model has classification capabilities
-    # Add any other specific modules that appear in future "Unsupported global" errors
+    # Removed 'Detections' from here as it's not an nn.Module - THIS IS THE KEY FIX FOR ImportError
 )
 import torch # Import torch directly for monkey-patching
 
@@ -31,8 +31,9 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 # IMPORTANT: This path MUST use FORWARD SLASHES (/) for cloud deployment.
-# Ensure 'license_plate_detector.pt' is in a 'models' folder relative to this script on GitHub.
-LICENSE_MODEL_DETECTION_DIR = 'models/license_plate_detector.pt'
+# Based on your local path, it seems 'models' is inside an 'llpr' folder in your repo.
+# Please verify this exact path on your GitHub repository.
+LICENSE_MODEL_DETECTION_DIR = 'llpr/models/license_plate_detector.pt' # <--- UPDATED PATH
 COCO_MODEL_DIR = 'yolov8n.pt' # Ultralytics will download this if not found
 
 # PHP API Base URL (CONFIRMED FROM YOUR PREVIOUS MESSAGE)
@@ -56,7 +57,7 @@ def load_models():
         logger.info(f"COCO model path (will be downloaded if not found): {COCO_MODEL_DIR}")
         logger.info(f"License plate model path (must be in repo): {LICENSE_MODEL_DETECTION_DIR}")
         st.write(f"Attempting to load COCO model from: {COCO_MODEL_DIR}")
-        st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}")
+        st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}") # This will show the exact path being used
 
         # Add safe globals (still good practice, but might not be enough for this specific model)
         torch.serialization.add_safe_globals([
