@@ -17,5 +17,4 @@ clippers
 scikit-image
 ninja
 Shapely
-PyYAML
 pandas
