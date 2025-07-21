@@ -4,11 +4,10 @@ ultralytics==8.1.25
 easyocr==1.7.2
 numpy
 requests
-# --- CRITICAL FIX: Pinning Torch and Torchvision for Python 3.13 ---
-# PyTorch 2.5.0+ supports Python 3.13. We'll use the CPU-only version.
-# This should resolve the 'No matching distribution found for torch' error.
-torch==2.5.0
-torchvision==0.20.0 # Compatible with torch 2.5.0
+# --- CRITICAL FIX: Pinning Torch and Torchvision for Python 3.13.5 ---
+# Using the latest available versions as per Streamlit Cloud logs.
+torch==2.7.1
+torchvision==0.22.1
 # -------------------------------------------------------------------
 scipy
 Pillow
@@ -17,4 +16,5 @@ clippers
 scikit-image
 ninja
 Shapely
+PyYAML
 pandas
