@@ -14,13 +14,16 @@ import os
 import torch.serialization # Import torch.serialization
 from ultralytics.nn.tasks import DetectionModel # Import DetectionModel directly
 import torch.nn # Import torch.nn to access modules like Sequential
-# --- CORRECTED: Import only actual nn.modules for safe loading ---
+# --- CRITICAL: Import ALL common ultralytics.nn.modules for safe loading ---
+# This list is expanded to cover most common YOLOv8 components
 from ultralytics.nn.modules import (
     Conv, C2f, Bottleneck, SPPF, Detect, Concat, DFL,
     Segment, # If your model has segmentation capabilities
     Pose, # If your model has pose estimation capabilities
-    Classify # If your model has classification capabilities
+    Classify, # If your model has classification capabilities
+    # Add any other specific modules that appear in future "Unsupported global" errors
 )
+import torch # Import torch directly for monkey-patching
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -46,38 +49,73 @@ EMAIL_CONFIG = {
 # --- Load Models ---
 @st.cache_resource
 def load_models():
+    # Store the original torch.load function
+    original_torch_load = torch.load
+
     try:
         logger.info(f"COCO model path (will be downloaded if not found): {COCO_MODEL_DIR}")
         logger.info(f"License plate model path (must be in repo): {LICENSE_MODEL_DETECTION_DIR}")
         st.write(f"Attempting to load COCO model from: {COCO_MODEL_DIR}")
-        st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}") # This will show the exact path being used
+        st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}")
 
-        # --- CRITICAL FIX: Add ONLY necessary ultralytics.nn.modules to safe globals ---
-        # Removed 'Detections' as it's not an nn.Module
+        # Add safe globals (still good practice, but might not be enough for this specific model)
         torch.serialization.add_safe_globals([
             DetectionModel,
             torch.nn.modules.container.Sequential,
-            Conv,
-            C2f,
-            Bottleneck,
-            SPPF,
-            Detect,
-            Concat,
-            DFL,
-            Segment,
-            Pose,
-            Classify
+            Conv, C2f, Bottleneck, SPPF, Detect, Concat, DFL,
+            Segment, Pose, Classify
         ])
-        # --- END OF CRITICAL FIX ---
 
-        coco_model = YOLO(COCO_MODEL_DIR)
-        license_plate_detector = YOLO(LICENSE_MODEL_DETECTION_DIR)
+        license_plate_detector = None
+        coco_model = None
+        reader = None
+
+        # --- CRITICAL: Monkey-patch torch.load to force weights_only=False for the problematic model ---
+        # This is a workaround for the persistent "Unsupported global" error when add_safe_globals fails.
+        # Use with caution and only if you trust the source of your .pt model file.
+        def custom_torch_load(f, map_location=None, pickle_module=torch.serialization, **kwargs):
+            # Check if the file being loaded is our specific license plate detector model
+            if isinstance(f, str) and f == LICENSE_MODEL_DETECTION_DIR:
+                if 'weights_only' not in kwargs: # Only modify if not already specified
+                    kwargs['weights_only'] = False
+                    logger.warning(f"Forcing weights_only=False for {f} to bypass PyTorch security check.")
+                    st.warning(f"Forcing weights_only=False for {f} to bypass PyTorch security check. Ensure you trust this model.")
+            return original_torch_load(f, map_location=map_location, pickle_module=pickle_module, **kwargs)
+
+        # Apply the monkey-patch
+        torch.load = custom_torch_load
+
+        try:
+            # Attempt to load the license plate detector model using YOLO
+            # This will now use our custom_torch_load function internally
+            license_plate_detector = YOLO(LICENSE_MODEL_DETECTION_DIR)
+            st.success("License plate detector model loaded successfully (possibly with weights_only=False workaround).")
+        except Exception as e_lp_load:
+            st.error(f"Failed to load license plate detector model even with workaround: {e_lp_load}")
+            logger.error(f"Failed to load license plate detector model with workaround: {e_lp_load}")
+            license_plate_detector = None # Ensure it's None if loading fails
+
+        try:
+            # Load the COCO model (this should not be affected by weights_only=False unless it's also a custom .pt)
+            coco_model = YOLO(COCO_MODEL_DIR)
+            st.success("COCO model loaded successfully.")
+        except Exception as e_coco_load:
+            st.error(f"Failed to load COCO model: {e_coco_load}")
+            logger.error(f"Failed to load COCO model: {e_coco_load}")
+            coco_model = None
+
         reader = easyocr.Reader(['en'], gpu=False)
+        st.success("EasyOCR reader initialized.")
+
         return coco_model, license_plate_detector, reader
+
     except Exception as e:
-        st.error(f"Error loading models: {e}")
-        logger.error(f"Error loading models: {e}")
+        st.error(f"An unexpected error occurred during model loading: {e}")
+        logger.error(f"An unexpected error occurred during model loading: {e}")
         return None, None, None
+    finally:
+        # IMPORTANT: Always restore the original torch.load to avoid side effects
+        torch.load = original_torch_load
 
 coco_model, license_plate_detector, reader = load_models()
 
