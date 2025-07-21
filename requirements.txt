@@ -5,13 +5,13 @@ easyocr==1.7.2
 numpy
 requests
 # --- CRITICAL FIX: Pinning Torch and Torchvision for Python 3.13 ---
-# PyTorch 2.3.0+ supports Python 3.13. We'll use the CPU-only version.
-# This should resolve the 'Unpickler' error and the installer failure.
-torch==2.3.0
-torchvision==0.18.0
+# PyTorch 2.5.0+ supports Python 3.13. We'll use the CPU-only version.
+# This should resolve the 'No matching distribution found for torch' error.
+torch==2.5.0
+torchvision==0.20.0 # Compatible with torch 2.5.0
 # -------------------------------------------------------------------
 scipy
-
+Pillow
 python-bidi
 clippers
 scikit-image
