@@ -4,18 +4,13 @@ ultralytics==8.1.25
 easyocr==1.7.2
 numpy
 requests
-# --- CRITICAL FIX: Pinning Torch and Torchvision for Python 3.13 ---
-# PyTorch 2.3.0+ supports Python 3.13. We'll use the CPU-only version.
-# This should resolve the 'Unpickler' error and the installer failure.
-torch==2.3.0
-torchvision==0.18.0
-# -------------------------------------------------------------------
+torch==2.0.1
+torchvision
 scipy
 Pillow
 python-bidi
-clippers
+pyclipper
 scikit-image
 ninja
 Shapely
 PyYAML
-pandas
