@@ -4,15 +4,12 @@ ultralytics==8.1.25
 easyocr==1.7.2
 numpy
 requests
-# --- CRITICAL FIX: Pinning Torch and Torchvision for Python 3.13.5 ---
-# Using the latest available versions as per Streamlit Cloud logs.
-torch==2.7.1
-torchvision==0.22.1
-# -------------------------------------------------------------------
+torch # Let pip find the most compatible CPU version for Python 3.10
+torchvision # Let pip find the most compatible CPU version for Python 3.10
 scipy
 Pillow
 python-bidi
-clippers
+pyclipper
 scikit-image
 ninja
 Shapely
