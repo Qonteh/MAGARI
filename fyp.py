@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # IMPORTANT: This path MUST use FORWARD SLASHES (/) for cloud deployment.
 # Based on your local path, it seems 'models' is inside an 'llpr' folder in your repo.
 # Please verify this exact path on your GitHub repository.
-LICENSE_MODEL_DETECTION_DIR = 'llpr/models/license_plate_detector.pt' # <--- UPDATED PATH
+LICENSE_MODEL_DETECTION_DIR = 'C:/VEHICLE/VEHICLE-UNIT/llpr/models/license_plate_detector.pt' # <--- UPDATED PATH
 COCO_MODEL_DIR = 'yolov8n.pt' # Ultralytics will download this if not found
 
 # PHP API Base URL (CONFIRMED FROM YOUR PREVIOUS MESSAGE)
