@@ -348,4 +348,102 @@ def process_vehicle_detection(detection_result):
         st.success("✅ **VEHICLE CLEARED** - Payment Verified!")
         st.success("**ACCESS GRANTED** - Vehicle is free to proceed.")
 
-        # Send confirmation (Email in Swahili, without specific vehicle details
+        # Send confirmation (Email in Swahili, without specific vehicle details block)
+        email_subject = f"✅ Gari {vehicle_id} - Ufikiaji Umeruhusiwa"
+        email_body = f"""UTHIBITISHO WA UFUATILIAJI WA GARIGari hili limethibitishwa kuwa LIMELIPWA na linaruhusiwa kuendelea.
+        """
+
+        send_sms_notification(phone_number, vehicle_id, fine_amount, "CLEARED - PAID")
+        send_email_fast(EMAIL_CONFIG['sender_email'], email_subject, email_body)
+
+    else:
+        st.warning(f"⚠️ **UNKNOWN STATUS: {status}**")
+        st.warning("**ACCESS DENIED** - Status verification required.")
+
+# --- Streamlit UI ---
+def main():
+    st.set_page_config(
+        page_title="Real-Time Vehicle Control System", # Back to English
+        page_icon="🚗",
+        layout="wide"
+    )
+
+    st.title("🚗 REAL-TIME VEHICLE LICENSE PLATE DETECTION & CONTROL SYSTEM") # Back to English
+    st.markdown("---")
+
+    # Sidebar for system status
+    with st.sidebar:
+        st.header("📊 System Status") # Back to English
+        st.info("This app fetches real-time vehicle status from your deployed PHP API.") # Back to English
+        st.markdown(f"**PHP API Base URL:** `{API_BASE_URL}`")
+        st.markdown("---")
+
+        st.subheader("Model Paths (Local)") # Back to English
+        # This will now show the relative paths used in the cloud
+        st.write(f"COCO: `{COCO_MODEL_DIR}`")
+        st.write(f"License Plate: `{LICENSE_MODEL_DETECTION_DIR}`")
+
+    # Main content
+    st.write("📸 **Capture or upload a vehicle image for real-time license plate detection and payment verification.**") # Back to English
+
+    # Image input options
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("📷 Camera Input") # Back to English
+        st.info("**Tip:** On mobile, tap the camera icon in your browser's address bar or settings to select the back (environment) camera for best results.") # Back to English
+        camera_img = st.camera_input("Take a Photo") # Back to English
+    with col2:
+        st.subheader("📁 File Upload") # Back to English
+        uploaded_img = st.file_uploader("Upload Vehicle Image", type=["jpg", "png", "jpeg"]) # Back to English
+
+    # Process image
+    image = None
+    if camera_img is not None:
+        image = np.array(Image.open(camera_img))
+        st.success("📷 Camera image captured!") # Back to English
+    elif uploaded_img is not None:
+        image = np.array(Image.open(uploaded_img))
+        st.success("📁 Image uploaded successfully!") # Back to English
+
+    if image is not None:
+        # Display image
+        st.subheader("🖼️ Input Image") # Back to English
+        st.image(image, width=600, caption="Vehicle Image for Analysis") # Back to English
+
+        # Process detection
+        with st.spinner("🔍 Detecting license plate and checking status via API..."): # Back to English
+            results = model_prediction(image)
+
+        if not results:
+            st.warning("⚠️ No license plate detected in the image.") # Back to English
+            st.info("💡 **Tips for better detection:**") # Back to English
+            st.info("- Ensure the license plate is clearly visible") # Back to English
+            st.info("- Good lighting conditions") # Back to English
+            st.info("- Minimal blur or distortion") # Back to English
+        else:
+            st.success(f"✅ Detected {len(results)} license plate(s)") # Back to English
+
+            for i, result in enumerate(results):
+                st.markdown("---")
+                st.subheader(f"🚗 Vehicle Detection #{i+1}") # Back to English
+
+                # Show cropped license plate
+                col1, col2 = st.columns([1, 2])
+
+                with col1:
+                    st.image(result['crop'], caption="License Plate Crop", width=300) # Back to English
+
+                with col2:
+                    if result['text']:
+                        st.success(f"**License Number:** {result['text']}") # Back to English
+
+                        # Process vehicle with real-time control
+                        process_vehicle_detection(result)
+                    else:
+                        st.error("❌ Could not read license plate text")
+    # Footer
+    st.markdown("---")
+    st.markdown("**🔧 Real-Time Vehicle Control System** | Status fetched from PHP API | Instant notifications") # Back to English
+
+if __name__ == "__main__":
+    main()
