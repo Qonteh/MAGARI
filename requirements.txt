@@ -11,7 +11,7 @@ torch==2.3.0
 torchvision==0.18.0
 # -------------------------------------------------------------------
 scipy
-Pillow
+
 python-bidi
 clippers
 scikit-image
