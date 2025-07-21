@@ -4,12 +4,16 @@ ultralytics==8.1.25
 easyocr==1.7.2
 numpy
 requests
-torch # Let pip find the most compatible CPU version for Python 3.10
-torchvision # Let pip find the most compatible CPU version for Python 3.10
+# --- CRITICAL FIX: Pinning Torch and Torchvision versions ---
+# These versions are known to be compatible with ultralytics 8.1.25 and often work well on CPU-only cloud environments.
+# If you have a GPU environment, you might need to adjust these to include CUDA (e.g., torch==2.1.0+cu118).
+torch==2.1.0+cpu
+torchvision==0.16.0+cpu
+# -----------------------------------------------------------
 scipy
 Pillow
 python-bidi
-pyclipper
+clippers
 scikit-image
 ninja
 Shapely
