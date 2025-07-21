@@ -17,9 +17,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-# IMPORTANT: Ensure these paths are correct on your system where you run this Streamlit app.
-LICENSE_MODEL_DETECTION_DIR = r'C:/VEHICLE/VEHICLE-UNIT/llpr/models/license_plate_detector.pt'
-COCO_MODEL_DIR = r'C:/VEHICLE/VEHICLE-UNIT/llpr/models/yolov8n.pt'
+# IMPORTANT: These paths are now relative to your project's root directory on Streamlit Cloud.
+# You MUST place 'license_plate_detector.pt' inside a 'models' folder in your GitHub repo.
+LICENSE_MODEL_DETECTION_DIR = 'models/license_plate_detector.pt'
+COCO_MODEL_DIR = 'yolov8n.pt' # Ultralytics will download this if not found
 
 # PHP API Base URL (CONFIRMED FROM YOUR PREVIOUS MESSAGE)
 API_BASE_URL = "https://quantisbroker.com/vehicle-payment-api"
@@ -36,18 +37,13 @@ EMAIL_CONFIG = {
 @st.cache_resource
 def load_models():
     try:
-        logger.info(f"COCO model path: {COCO_MODEL_DIR}")
-        logger.info(f"License plate model path: {LICENSE_MODEL_DETECTION_DIR}")
-        st.write(f"COCO model path: {COCO_MODEL_DIR}")
-        st.write(f"License plate model path: {LICENSE_MODEL_DETECTION_DIR}")
-        if not os.path.isfile(COCO_MODEL_DIR):
-            st.error(f"COCO model file not found: {COCO_MODEL_DIR}")
-            logger.error(f"COCO model file not found: {COCO_MODEL_DIR}")
-            return None, None, None
-        if not os.path.isfile(LICENSE_MODEL_DETECTION_DIR):
-            st.error(f"License plate model file not found: {LICENSE_MODEL_DETECTION_DIR}")
-            logger.error(f"License plate model file not found: {LICENSE_MODEL_DETECTION_DIR}")
-            return None, None, None
+        logger.info(f"COCO model path (will be downloaded if not found): {COCO_MODEL_DIR}")
+        logger.info(f"License plate model path (must be in repo): {LICENSE_MODEL_DETECTION_DIR}")
+        st.write(f"COCO model path (will be downloaded if not found): {COCO_MODEL_DIR}")
+        st.write(f"License plate model path (must be in repo): {LICENSE_MODEL_DETECTION_DIR}")
+
+        # Removed os.path.isfile checks here as they conflict with cloud deployment/auto-download.
+        # The YOLO constructor and the outer try-except block handle errors.
         coco_model = YOLO(COCO_MODEL_DIR)
         license_plate_detector = YOLO(LICENSE_MODEL_DETECTION_DIR)
         reader = easyocr.Reader(['en'], gpu=False)
@@ -72,7 +68,6 @@ def get_vehicle_payment_status_from_api(license_plate):
     formatted_license = format_license_plate(license_plate)
     if not formatted_license:
         return {'found': False, 'error': 'Invalid license plate format'}
-
     try:
         # Explicitly set Accept and User-Agent headers
         headers = {
@@ -86,7 +81,6 @@ def get_vehicle_payment_status_from_api(license_plate):
         )
         response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
         data = response.json()
-
         if data.get('success') and data.get('data'):
             vehicle_data = data['data']
             return {
@@ -111,7 +105,6 @@ def get_vehicle_payment_status_from_api(license_plate):
         logger.error(f"Unexpected error fetching vehicle status: {e}")
         return {'found': False, 'error': f"Unexpected error: {e}"}
 
-
 def read_license_plate(license_plate_crop, img):
     detections = reader.readtext(license_plate_crop)
     logger.info(f"OCR detections: {detections}")
@@ -127,6 +120,7 @@ def read_license_plate(license_plate_crop, img):
         pts = np.array(result[0]).astype(int)
         text = result[1]
         score = result[2]
+        
         
         length = np.linalg.norm(np.array(result[0][1]) - np.array(result[0][0]))
         height = np.linalg.norm(np.array(result[0][2]) - np.array(result[0][1]))
@@ -231,10 +225,12 @@ def send_email_fast(recipient_email, subject, body):
             smtp.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['app_password'])
             smtp.send_message(msg)
             
+            
         st.success(f"✅ Email sent successfully to {recipient_email}")
         logger.info(f"Email sent successfully to {recipient_email}")
         return True
-                
+        
+        
     except smtplib.SMTPAuthenticationError:
         st.error("❌ Email authentication failed. Check credentials.")
         logger.error("Email authentication failed")
@@ -280,14 +276,7 @@ def process_vehicle_detection(detection_result):
         st.info(f"[🔗 Pay Fine Now]({payment_link})")
         # Send immediate alerts (Email in Swahili, without specific vehicle details block)
         email_subject = f"🚨 HARAKA: Gari {vehicle_id} LIMEZUIWA - Malipo Yanahitajika"
-        email_body = f"""TAARIFA YA UFUATILIAJI WA GARI - HATUA YA HARAKA INAHITAJIKA
-
-Gari hili limezuiwa kiotomatiki kutokana na faini ambazo hazijalipwa.
-Gari haliwezi kuendelea hadi malipo yakamilike.
-
-Lipa faini yako sasa: {payment_link}
-
-Tafadhali wasiliana na mmiliki mara moja au kamilisha malipo ili kufungua gari.
+        email_body = f"""TAARIFA YA UFUATILIAJI WA GARI - HATUA YA HARAKA INAHITAJIKAGari hili limezuiwa kiotomatiki kutokana na faini ambazo hazijalipwa.Gari haliwezi kuendelea hadi malipo yakamilike.Lipa faini yako sasa: {payment_link}Tafadhali wasiliana na mmiliki mara moja au kamilisha malipo ili kufungua gari.
         """
         # Send notifications
         send_sms_notification(phone_number, vehicle_id, fine_amount, "BLOCKED - NOT PAID")
@@ -299,9 +288,7 @@ Tafadhali wasiliana na mmiliki mara moja au kamilisha malipo ili kufungua gari.
         
         # Send confirmation (Email in Swahili, without specific vehicle details block)
         email_subject = f"✅ Gari {vehicle_id} - Ufikiaji Umeruhusiwa"
-        email_body = f"""UTHIBITISHO WA UFUATILIAJI WA GARI
-
-Gari hili limethibitishwa kuwa LIMELIPWA na linaruhusiwa kuendelea.
+        email_body = f"""UTHIBITISHO WA UFUATILIAJI WA GARIGari hili limethibitishwa kuwa LIMELIPWA na linaruhusiwa kuendelea.
         """
         
         send_sms_notification(phone_number, vehicle_id, fine_amount, "CLEARED - PAID")
@@ -328,6 +315,7 @@ def main():
         st.info("This app fetches real-time vehicle status from your deployed PHP API.") # Back to English
         st.markdown(f"**PHP API Base URL:** `{API_BASE_URL}`")
         st.markdown("---")
+        
         st.subheader("Model Paths (Local)") # Back to English
         st.write(f"COCO: `{COCO_MODEL_DIR}`")
         st.write(f"License Plate: `{LICENSE_MODEL_DETECTION_DIR}`")
@@ -353,7 +341,7 @@ def main():
     elif uploaded_img is not None:
         image = np.array(Image.open(uploaded_img))
         st.success("📁 Image uploaded successfully!") # Back to English
-        
+    
     if image is not None:
         # Display image
         st.subheader("🖼️ Input Image") # Back to English
@@ -362,6 +350,7 @@ def main():
         # Process detection
         with st.spinner("🔍 Detecting license plate and checking status via API..."): # Back to English
             results = model_prediction(image)
+            
             
             if not results:
                 st.warning("⚠️ No license plate detected in the image.") # Back to English
@@ -372,9 +361,11 @@ def main():
             else:
                 st.success(f"✅ Detected {len(results)} license plate(s)") # Back to English
                 
+                
                 for i, result in enumerate(results):
                     st.markdown("---")
                     st.subheader(f"🚗 Vehicle Detection #{i+1}") # Back to English
+                    
                     
                     # Show cropped license plate
                     col1, col2 = st.columns([1, 2])
@@ -385,6 +376,7 @@ def main():
                     with col2:
                         if result['text']:
                             st.success(f"**License Number:** {result['text']}") # Back to English
+                            
                             
                             # Process vehicle with real-time control
                             process_vehicle_detection(result)
