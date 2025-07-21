@@ -15,13 +15,13 @@ import torch.serialization # Import torch.serialization
 from ultralytics.nn.tasks import DetectionModel # Import DetectionModel directly
 import torch.nn # Import torch.nn to access modules like Sequential
 # --- CRITICAL: Import ALL common ultralytics.nn.modules for safe loading ---
-# This list is expanded to cover most common YOLOv8 components
+# This list is expanded to cover most common YOLOv8 components.
+# 'Detections' has been explicitly removed as it's not an nn.Module.
 from ultralytics.nn.modules import (
     Conv, C2f, Bottleneck, SPPF, Detect, Concat, DFL,
     Segment, # If your model has segmentation capabilities
     Pose, # If your model has pose estimation capabilities
     Classify, # If your model has classification capabilities
-    # Removed 'Detections' from here as it's not an nn.Module - THIS IS THE KEY FIX FOR ImportError
 )
 import torch # Import torch directly for monkey-patching
 
