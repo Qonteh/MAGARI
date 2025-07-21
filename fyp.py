@@ -12,6 +12,7 @@ from datetime import datetime
 import logging
 import os
 import torch.serialization # Import torch.serialization
+from ultralytics.nn.tasks import DetectionModel # <--- NEW: Import DetectionModel directly
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,12 +44,12 @@ def load_models():
         st.write(f"Attempting to load COCO model from: {COCO_MODEL_DIR}")
         st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}") # This will show the exact path being used
 
-        # --- START OF NEW FIX ---
+        # --- CORRECTED FIX ---
         # Add ultralytics.nn.tasks.DetectionModel to safe globals for PyTorch loading
         # This is necessary for newer PyTorch versions (e.g., 2.6+)
         # that default to weights_only=True for security.
-        torch.serialization.add_safe_globals([YOLO.DetectionModel])
-        # --- END OF NEW FIX ---
+        torch.serialization.add_safe_globals([DetectionModel]) # <--- CORRECTED: Use the imported DetectionModel
+        # --- END OF CORRECTED FIX ---
 
         coco_model = YOLO(COCO_MODEL_DIR)
         license_plate_detector = YOLO(LICENSE_MODEL_DETECTION_DIR)
