@@ -11,30 +11,17 @@ import time
 from datetime import datetime
 import logging
 import os
-import torch.serialization # Import torch.serialization
-from ultralytics.nn.tasks import DetectionModel # Import DetectionModel directly
-import torch.nn # Import torch.nn to access modules like Sequential
-# --- CRITICAL: Import ALL common ultralytics.nn.modules for safe loading ---
-# This list is expanded to cover most common YOLOv8 components.
-# 'Detections' has been explicitly removed as it's not an nn.Module.
-from ultralytics.nn.modules import (
-    Conv, C2f, Bottleneck, SPPF, Detect, Concat, DFL,
-    Segment, # If your model has segmentation capabilities
-    Pose, # If your model has pose estimation capabilities
-    Classify, # If your model has classification capabilities
-)
-import torch # Import torch directly for monkey-patching
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-# IMPORTANT: This path MUST use FORWARD SLASHES (/) for cloud deployment.
-# Based on your local path, it seems 'models' is inside an 'llpr' folder in your repo.
-# Please verify this exact path on your GitHub repository.
-LICENSE_MODEL_DETECTION_DIR = 'llpr/models/license_plate_detector.pt' # <--- UPDATED PATH
-COCO_MODEL_DIR = 'yolov8n.pt' # Ultralytics will download this if not found
+# IMPORTANT: For deployment, these paths should be relative to your project
+# or point to models hosted on cloud storage (e.g., S3, Google Cloud Storage).
+# Hardcoded local paths like 'C:/...' will not work in a cloud environment.
+LICENSE_MODEL_DETECTION_DIR = r'C:/VEHICLE/VEHICLE-UNIT/llpr/models/license_plate_detector.pt'
+COCO_MODEL_DIR = r'C:/VEHICLE/VEHICLE-UNIT/llpr/models/yolov8n.pt'
 
 # PHP API Base URL (CONFIRMED FROM YOUR PREVIOUS MESSAGE)
 API_BASE_URL = "https://quantisbroker.com/vehicle-payment-api"
@@ -42,7 +29,9 @@ API_BASE_URL = "https://quantisbroker.com/vehicle-payment-api"
 # Email configuration
 EMAIL_CONFIG = {
     'sender_email': 'googlotanzania@gmail.com',
-    'app_password': 'qyln pcco sedy gewj', # This is sensitive, consider using environment variables
+    # IMPORTANT: This is sensitive information. For deployment, use environment variables
+    # (e.g., os.environ.get('EMAIL_APP_PASSWORD')) instead of hardcoding.
+    'app_password': 'qyln pcco sedy gewj',
     'smtp_server': 'smtp.gmail.com',
     'smtp_port': 465
 }
@@ -50,110 +39,31 @@ EMAIL_CONFIG = {
 # --- Load Models ---
 @st.cache_resource
 def load_models():
-    # Store the original torch.load function
-    original_torch_load = torch.load
-    
-    license_plate_detector = None
-    coco_model = None
-    reader = None
-
     try:
-        logger.info(f"COCO model path (will be downloaded if not found): {COCO_MODEL_DIR}")
-        logger.info(f"License plate model path (must be in repo): {LICENSE_MODEL_DETECTION_DIR}")
-        st.write(f"Attempting to load COCO model from: {COCO_MODEL_DIR}")
-        st.write(f"Attempting to load License plate model from: {LICENSE_MODEL_DETECTION_DIR}") # This will show the exact path being used
+        logger.info(f"COCO model path: {COCO_MODEL_DIR}")
+        logger.info(f"License plate model path: {LICENSE_MODEL_DETECTION_DIR}")
+        st.write(f"COCO model path: {COCO_MODEL_DIR}")
+        st.write(f"License plate model path: {LICENSE_MODEL_DETECTION_DIR}")
 
-        # --- CRITICAL: Check for Unpickler attribute before proceeding ---
-        if not hasattr(torch.serialization, 'Unpickler'):
-            error_msg = (
-                "CRITICAL ERROR: 'torch.serialization' module is missing the 'Unpickler' attribute. "
-                "This indicates a severe issue with your PyTorch installation or version. "
-                "Please ensure PyTorch is installed correctly and is up-to-date. "
-                "Model loading cannot proceed without this core PyTorch component."
-            )
-            st.error(error_msg)
-            logger.critical(error_msg)
+        # These checks are good for local development but will fail in a cloud environment
+        # if models are not packaged correctly or downloaded at runtime.
+        if not os.path.isfile(COCO_MODEL_DIR):
+            st.error(f"COCO model file not found: {COCO_MODEL_DIR}")
+            logger.error(f"COCO model file not found: {COCO_MODEL_DIR}")
+            return None, None, None
+        if not os.path.isfile(LICENSE_MODEL_DETECTION_DIR):
+            st.error(f"License plate model file not found: {LICENSE_MODEL_DETECTION_DIR}")
+            logger.error(f"License plate model file not found: {LICENSE_MODEL_DETECTION_DIR}")
             return None, None, None
 
-        # Add safe globals (still good practice, but might not be enough for this specific model)
-        try:
-            torch.serialization.add_safe_globals([
-                DetectionModel,
-                torch.nn.modules.container.Sequential,
-                Conv, C2f, Bottleneck, SPPF, Detect, Concat, DFL,
-                Segment, Pose, Classify
-            ])
-            logger.info("torch.serialization.add_safe_globals applied.")
-        except Exception as e_safe_globals:
-            logger.warning(f"Failed to apply torch.serialization.add_safe_globals: {e_safe_globals}. This might indicate deeper issues.")
-            st.warning(f"Warning: Failed to apply safe globals for model loading: {e_safe_globals}. This might cause issues.")
-
-        # --- CRITICAL: Monkey-patch torch.load to force weights_only=False for the problematic model ---
-        # This is a workaround for the persistent "Unsupported global" error when add_safe_globals fails.
-        # Use with caution and only if you trust the source of your .pt model file.
-        def custom_torch_load(f, map_location=None, pickle_module=torch.serialization, **kwargs):
-            # If the provided pickle_module is missing Unpickler, try to fall back to standard pickle
-            if not hasattr(pickle_module, 'Unpickler'):
-                logger.warning(f"Custom torch.load: Provided pickle_module '{pickle_module.__name__}' is missing 'Unpickler'. Attempting to use standard 'pickle' module.")
-                try:
-                    import pickle
-                    if hasattr(pickle, 'Unpickler'):
-                        pickle_module = pickle
-                    else:
-                        raise ImportError("Standard 'pickle' module also missing 'Unpickler'.")
-                except ImportError as ie:
-                    logger.error(f"Failed to import or find 'Unpickler' in standard 'pickle' module: {ie}")
-                    raise RuntimeError("Cannot find a valid pickle module with 'Unpickler' attribute. Your PyTorch installation might be severely corrupted.")
-
-            if isinstance(f, str) and f == LICENSE_MODEL_DETECTION_DIR:
-                if 'weights_only' not in kwargs: # Only modify if not already specified
-                    kwargs['weights_only'] = False
-                    logger.warning(f"Forcing weights_only=False for {f} to bypass PyTorch security check.")
-                    st.warning(f"Forcing weights_only=False for {f} to bypass PyTorch security check. Ensure you trust this model.")
-            return original_torch_load(f, map_location=map_location, pickle_module=pickle_module, **kwargs)
-        
-        # Apply the monkey-patch
-        torch.load = custom_torch_load
-
-        # --- Specific error handling for YOLO model loading ---
-        try:
-            # Attempt to load the license plate detector model using YOLO
-            # This will now use our custom_torch_load function internally
-            license_plate_detector = YOLO(LICENSE_MODEL_DETECTION_DIR)
-            st.success("License plate detector model loaded successfully (possibly with weights_only=False workaround).")
-        except FileNotFoundError:
-            st.error(f"ERROR: License plate detector model file not found at: {LICENSE_MODEL_DETECTION_DIR}. Please ensure it's in your GitHub repo at the correct path.")
-            logger.error(f"FileNotFoundError for license plate detector model: {LICENSE_MODEL_DETECTION_DIR}")
-            license_plate_detector = None
-        except Exception as e_lp_load:
-            st.error(f"Failed to load license plate detector model: {e_lp_load}. This is likely due to the 'Unpickler' issue or model corruption.")
-            logger.error(f"Failed to load license plate detector model: {e_lp_load}")
-            license_plate_detector = None
-
-        try:
-            # Load the COCO model (this should not be affected by weights_only=False unless it's also a custom .pt)
-            coco_model = YOLO(COCO_MODEL_DIR)
-            st.success("COCO model loaded successfully.")
-        except FileNotFoundError:
-            st.error(f"ERROR: COCO model file not found at: {COCO_MODEL_DIR}. Ultralytics usually downloads this, but check network access.")
-            logger.error(f"FileNotFoundError for COCO model: {COCO_MODEL_DIR}")
-            coco_model = None
-        except Exception as e_coco_load:
-            st.error(f"Failed to load COCO model: {e_coco_load}. This is likely due to the 'Unpickler' issue or network problems for download.")
-            logger.error(f"Failed to load COCO model: {e_coco_load}")
-            coco_model = None
-
-        reader = easyocr.Reader(['en'], gpu=False)
-        st.success("EasyOCR reader initialized.")
-
+        coco_model = YOLO(COCO_MODEL_DIR)
+        license_plate_detector = YOLO(LICENSE_MODEL_DETECTION_DIR)
+        reader = easyocr.Reader(['en'], gpu=False) # gpu=False is good for cloud deployments without GPU
         return coco_model, license_plate_detector, reader
     except Exception as e:
-        st.error(f"An unexpected error occurred during model loading: {e}")
-        logger.error(f"An unexpected error occurred during model loading: {e}")
+        st.error(f"Error loading models: {e}")
+        logger.error(f"Error loading models: {e}")
         return None, None, None
-    finally:
-        # IMPORTANT: Always restore the original torch.load to avoid side effects
-        torch.load = original_torch_load
 
 coco_model, license_plate_detector, reader = load_models()
 
@@ -210,19 +120,25 @@ def get_vehicle_payment_status_from_api(license_plate):
 def read_license_plate(license_plate_crop, img):
     detections = reader.readtext(license_plate_crop)
     logger.info(f"OCR detections: {detections}")
+
     if not detections:
         return None, 0
+
     plate = []
     scores = 0
     rectangle_size = license_plate_crop.shape[0] * license_plate_crop.shape[1]
+
     for result in detections:
         pts = np.array(result[0]).astype(int)
         text = result[1]
         score = result[2]
+
         length = np.linalg.norm(np.array(result[0][1]) - np.array(result[0][0]))
         height = np.linalg.norm(np.array(result[0][2]) - np.array(result[0][1]))
         area_ratio = (length * height) / rectangle_size
+
         logger.info(f"Detection box area ratio: {area_ratio:.3f} for text: {text}")
+
         if area_ratio > 0.05: # Filter out small, potentially noisy detections
             plate.append(text.upper())
             scores += score
@@ -231,6 +147,7 @@ def read_license_plate(license_plate_crop, img):
         combined_plate = " ".join(plate)
         logger.info(f"Accepted plate text: {combined_plate} with avg score: {avg_score:.3f}")
         return combined_plate, avg_score
+
     logger.info("No license plate text passed the area filter.")
     return None, 0
 
@@ -279,10 +196,10 @@ def send_sms_notification(phone_number, vehicle_id, fine_amount, status):
             f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}. "
             f"Pay now: {payment_link}"
         )
-        # IMPORTANT: Ensure your local PHP server is running and accessible at this URL
-        # For deployment, this URL might need to be a publicly accessible endpoint
+        # IMPORTANT: For deployment, this URL must be publicly accessible, not localhost.
+        # You would deploy your PHP SMS service to a public server.
         response = requests.post(
-            "http://localhost/QONTE/sms_notification.php", # <--- Check this URL for deployment
+            "http://localhost/QONTE/sms_notification.php",
             data={
                 "phone_number": phone_number,
                 "vehicle_id": vehicle_id,
@@ -314,12 +231,15 @@ def send_email_fast(recipient_email, subject, body):
         msg['To'] = recipient_email
         msg['Subject'] = subject
         msg.set_content(body)
+
         with smtplib.SMTP_SSL(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as smtp:
             smtp.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['app_password'])
             smtp.send_message(msg)
+
         st.success(f"✅ Email sent successfully to {recipient_email}")
         logger.info(f"Email sent successfully to {recipient_email}")
         return True
+
     except smtplib.SMTPAuthenticationError:
         st.error("❌ Email authentication failed. Check credentials.")
         logger.error("Email authentication failed")
@@ -336,9 +256,11 @@ def send_email_fast(recipient_email, subject, body):
 def process_vehicle_detection(detection_result):
     """Process vehicle detection with real-time status from API."""
     payment_status = detection_result['payment_status']
+
     if not payment_status or not payment_status.get('found', False):
         st.warning(f"⚠️ Vehicle not found in database or API error: {payment_status.get('error', 'Unknown error')}. Access DENIED by default.")
         return
+
     vehicle_id = payment_status.get('vehicle_id')
     status = payment_status.get('command_status', 'UNKNOWN')
     owner_name = payment_status.get('owner_name', 'Unknown')
@@ -368,15 +290,19 @@ def process_vehicle_detection(detection_result):
         # Send notifications
         send_sms_notification(phone_number, vehicle_id, fine_amount, "BLOCKED - NOT PAID")
         send_email_fast(EMAIL_CONFIG['sender_email'], email_subject, email_body)
+
     elif status == 'PAID':
         st.success("✅ **VEHICLE CLEARED** - Payment Verified!")
         st.success("**ACCESS GRANTED** - Vehicle is free to proceed.")
+
         # Send confirmation (Email in Swahili, without specific vehicle details block)
         email_subject = f"✅ Gari {vehicle_id} - Ufikiaji Umeruhusiwa"
         email_body = f"""UTHIBITISHO WA UFUATILIAJI WA GARIGari hili limethibitishwa kuwa LIMELIPWA na linaruhusiwa kuendelea.
         """
+
         send_sms_notification(phone_number, vehicle_id, fine_amount, "CLEARED - PAID")
         send_email_fast(EMAIL_CONFIG['sender_email'], email_subject, email_body)
+
     else:
         st.warning(f"⚠️ **UNKNOWN STATUS: {status}**")
         st.warning("**ACCESS DENIED** - Status verification required.")
@@ -388,6 +314,7 @@ def main():
         page_icon="🚗",
         layout="wide"
     )
+
     st.title("🚗 REAL-TIME VEHICLE LICENSE PLATE DETECTION & CONTROL SYSTEM") # Back to English
     st.markdown("---")
 
@@ -398,7 +325,6 @@ def main():
         st.markdown(f"**PHP API Base URL:** `{API_BASE_URL}`")
         st.markdown("---")
         st.subheader("Model Paths (Local)") # Back to English
-        # This will now show the relative paths used in the cloud
         st.write(f"COCO: `{COCO_MODEL_DIR}`")
         st.write(f"License Plate: `{LICENSE_MODEL_DETECTION_DIR}`")
 
@@ -407,21 +333,23 @@ def main():
 
     # Image input options
     col1, col2 = st.columns(2)
-    image = None
     with col1:
         st.subheader("📷 Camera Input") # Back to English
         st.info("**Tip:** On mobile, tap the camera icon in your browser's address bar or settings to select the back (environment) camera for best results.") # Back to English
         camera_img = st.camera_input("Take a Photo") # Back to English
-        if camera_img is not None:
-            image = np.array(Image.open(camera_img))
-            st.success("📷 Camera image captured!") # Back to English
     with col2:
         st.subheader("📁 File Upload") # Back to English
         uploaded_img = st.file_uploader("Upload Vehicle Image", type=["jpg", "png", "jpeg"]) # Back to English
-        if uploaded_img is not None:
-            image = np.array(Image.open(uploaded_img))
-            st.success("📁 Image uploaded successfully!") # Back to English
-    
+
+    # Process image
+    image = None
+    if camera_img is not None:
+        image = np.array(Image.open(camera_img))
+        st.success("📷 Camera image captured!") # Back to English
+    elif uploaded_img is not None:
+        image = np.array(Image.open(uploaded_img))
+        st.success("📁 Image uploaded successfully!") # Back to English
+
     if image is not None:
         # Display image
         st.subheader("🖼️ Input Image") # Back to English
@@ -431,29 +359,33 @@ def main():
         with st.spinner("🔍 Detecting license plate and checking status via API..."): # Back to English
             results = model_prediction(image)
 
-        if not results:
-            st.warning("⚠️ No license plate detected in the image.") # Back to English
-            st.info("💡 **Tips for better detection:**") # Back to English
-            st.info("- Ensure the license plate is clearly visible") # Back to English
-            st.info("- Good lighting conditions") # Back to English
-            st.info("- Minimal blur or distortion") # Back to English
-        else:
-            st.success(f"✅ Detected {len(results)} license plate(s)") # Back to English
-            for i, result in enumerate(results):
-                st.markdown("---")
-                st.subheader(f"🚗 Vehicle Detection #{i+1}") # Back to English
-                # Show cropped license plate
-                col1, col2 = st.columns([1, 2])
-                with col1:
-                    st.image(result['crop'], caption="License Plate Crop", width=300) # Back to English
-                with col2:
-                    if result['text']:
-                        st.success(f"**License Number:** {result['text']}") # Back to English
-                        # Process vehicle with real-time control
-                        process_vehicle_detection(result)
-                    else:
-                        st.error("❌ Could not read license plate text")
+            if not results:
+                st.warning("⚠️ No license plate detected in the image.") # Back to English
+                st.info("💡 **Tips for better detection:**") # Back to English
+                st.info("- Ensure the license plate is clearly visible") # Back to English
+                st.info("- Good lighting conditions") # Back to English
+                st.info("- Minimal blur or distortion") # Back to English
+            else:
+                st.success(f"✅ Detected {len(results)} license plate(s)") # Back to English
 
+                for i, result in enumerate(results):
+                    st.markdown("---")
+                    st.subheader(f"🚗 Vehicle Detection #{i+1}") # Back to English
+
+                    # Show cropped license plate
+                    col1, col2 = st.columns([1, 2])
+
+                    with col1:
+                        st.image(result['crop'], caption="License Plate Crop", width=300) # Back to English
+
+                    with col2:
+                        if result['text']:
+                            st.success(f"**License Number:** {result['text']}") # Back to English
+
+                            # Process vehicle with real-time control
+                            process_vehicle_detection(result)
+                        else:
+                            st.error("❌ Could not read license plate text") # Back to English
     # Footer
     st.markdown("---")
     st.markdown("**🔧 Real-Time Vehicle Control System** | Status fetched from PHP API | Instant notifications") # Back to English
