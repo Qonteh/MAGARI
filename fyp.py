@@ -17,11 +17,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-# IMPORTANT: For deployment, these paths should be relative to your project
-# or point to models hosted on cloud storage (e.g., S3, Google Cloud Storage).
-# Hardcoded local paths like 'C:/...' will not work in a cloud environment.
-LICENSE_MODEL_DETECTION_DIR = r'C:/VEHICLE/VEHICLE-UNIT/llpr/models/license_plate_detector.pt'
-COCO_MODEL_DIR = r'C:/VEHICLE/VEHICLE-UNIT/llpr/models/yolov8n.pt'
+# IMPORTANT CHANGE: These paths are now relative to your app.py file.
+# Ensure your 'models' folder is in the same directory as this script.
+LICENSE_MODEL_DETECTION_DIR = './models/license_plate_detector.pt'
+COCO_MODEL_DIR = './models/yolov8n.pt'
 
 # PHP API Base URL (CONFIRMED FROM YOUR PREVIOUS MESSAGE)
 API_BASE_URL = "https://quantisbroker.com/vehicle-payment-api"
@@ -45,14 +44,13 @@ def load_models():
         st.write(f"COCO model path: {COCO_MODEL_DIR}")
         st.write(f"License plate model path: {LICENSE_MODEL_DETECTION_DIR}")
 
-        # These checks are good for local development but will fail in a cloud environment
-        # if models are not packaged correctly or downloaded at runtime.
+        # These checks will now correctly verify if the models are found in the deployed environment
         if not os.path.isfile(COCO_MODEL_DIR):
-            st.error(f"COCO model file not found: {COCO_MODEL_DIR}")
+            st.error(f"COCO model file not found: {COCO_MODEL_DIR}. Please ensure it's in the 'models' folder in your project root.")
             logger.error(f"COCO model file not found: {COCO_MODEL_DIR}")
             return None, None, None
         if not os.path.isfile(LICENSE_MODEL_DETECTION_DIR):
-            st.error(f"License plate model file not found: {LICENSE_MODEL_DETECTION_DIR}")
+            st.error(f"License plate model file not found: {LICENSE_MODEL_DETECTION_DIR}. Please ensure it's in the 'models' folder in your project root.")
             logger.error(f"License plate model file not found: {LICENSE_MODEL_DETECTION_DIR}")
             return None, None, None
 
