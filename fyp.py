@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 # --- Configuration ---
 # IMPORTANT CHANGE: These paths are now relative to your app.py file.
 # Ensure your 'models' folder is in the same directory as this script.
-LICENSE_MODEL_DETECTION_DIR = '../models/license_plate_detector.pt'
-COCO_MODEL_DIR = './models/yolov8n.pt'
+LICENSE_MODEL_DETECTION_DIR = 'models/license_plate_detector.pt'
+COCO_MODEL_DIR = 'models/yolov8n.pt'
 
 # PHP API Base URL (CONFIRMED FROM YOUR PREVIOUS MESSAGE)
 API_BASE_URL = "https://quantisbroker.com/vehicle-payment-api"
